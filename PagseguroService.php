@@ -5,6 +5,8 @@ namespace App\Services;
 
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Support\Facades\Log;
 
 class PagseguroService
 {
@@ -72,6 +74,49 @@ class PagseguroService
                 ]
             ]
         );
+        return json_decode($response->getBody(), true);
+    }
+
+    public function createPayment(string $txId, string $token, float $value, int $userId)
+    {
+        $chavePix = env('PAGSEGURO_CHAVE_PIX');
+
+        $txId = substr($txId, 0, 30);
+
+        $url = $this->url."/instant-payments/cob/$txId";
+
+        try {
+            $response = $this->client->request(
+                'PUT',
+                $url,
+                [
+                    'ssl_key' => $this->ssl_key,
+                    'cert' => $this->cert,
+                    'headers' => [
+                        'Authorization' => "Bearer $token",
+                    ],
+                    'json' => [
+                        'calendario' => [
+                            'expiracao' => 3600
+                        ],
+                        "valor" => [
+                            "original" => number_format($value, '2', '.', '')
+                        ],
+                        'chave' => $chavePix,
+                        'infoAdicionais' => [
+                            [
+                                'nome' => 'id',
+                                'valor' => (string)$userId
+                            ]
+                        ]
+                    ]
+                ]
+            );
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            Log::info($e->getResponse()->getBody()->getContents());
+            return ['error' => $e->getResponse()->getBody()->getContents()];
+        }
+
         return json_decode($response->getBody(), true);
     }
 
